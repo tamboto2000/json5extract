@@ -44,9 +44,15 @@ func (str *String) pushByt(char byte) {
 	str.Raw = append(str.Raw, char)
 }
 
-func parseDoubleQuoteStr(r reader) (*String, error) {
+func parseQuotedStr(r reader, ty int) (*String, error) {
 	str := &String{Type: DoubleQuotedStr}
-	str.pushByt(doubleQuote)
+
+	if ty == DoubleQuotedStr {
+		str.pushByt('"')
+	} else {
+		str.pushByt('\'')
+	}
+
 	for {
 		char, err := r.ReadByte()
 		if err != nil {
@@ -100,12 +106,12 @@ func parseDoubleQuoteStr(r reader) (*String, error) {
 			continue
 		}
 
-		if char == doubleQuote {
-			prevChar := str.Raw[len(str.Raw)-1]
-			if prevChar == reverseSolidus {
-				return nil, ErrInvalidFormat
-			}
+		if char == '"' && ty == DoubleQuotedStr {
+			str.pushByt(char)
+			break
+		}
 
+		if char == '\'' && ty == SingleQuotedStr {
 			str.pushByt(char)
 			break
 		}
@@ -194,6 +200,12 @@ func parseDoubleQuoteStr(r reader) (*String, error) {
 	}
 
 	str.Value = string(bytes.Trim(unescapeByts(str.Raw), `"`))
+
+	return str, nil
+}
+
+func parseSingleQuoteStr(r reader) (*String, error) {
+	str := &String{Type: SingleQuotedStr}
 
 	return str, nil
 }
