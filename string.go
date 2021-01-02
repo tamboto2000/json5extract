@@ -44,7 +44,7 @@ func (str *String) pushByt(char byte) {
 	str.Raw = append(str.Raw, char)
 }
 
-func parseQuotedStr(r reader, ty int) (*String, error) {
+func parseStr(r reader, ty int) (*String, error) {
 	str := &String{Type: DoubleQuotedStr}
 
 	if ty == DoubleQuotedStr {

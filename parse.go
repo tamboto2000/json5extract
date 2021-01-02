@@ -44,7 +44,7 @@ func parse(r reader) (JSON5, error) {
 
 		// parse double quoted string
 		if char == '"' {
-			json5, err := parseQuotedStr(r, DoubleQuotedStr)
+			json5, err := parseStr(r, DoubleQuotedStr)
 			if err != nil {
 				if err == io.EOF {
 					break
@@ -59,7 +59,7 @@ func parse(r reader) (JSON5, error) {
 
 		// parse single quoted string
 		if char == '\'' {
-			json5, err := parseQuotedStr(r, SingleQuotedStr)
+			json5, err := parseStr(r, SingleQuotedStr)
 			if err != nil {
 				if err == io.EOF {
 					break
