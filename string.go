@@ -110,7 +110,7 @@ func parseDoubleQuoteStr(r reader) (*String, error) {
 			break
 		}
 
-		// linter terminator (\n)
+		// line terminator (\n)
 		if char == '\n' {
 			rawLen := len(str.Raw)
 			prev1Char := str.Raw[rawLen-1]
