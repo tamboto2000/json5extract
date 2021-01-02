@@ -16,3 +16,9 @@ func FromFile(path string) ([]JSON5, error) {
 
 	return parseAll(reader)
 }
+
+// FromBytes extract JSON5 strings from array of bytes
+func FromBytes(byts []byte) ([]JSON5, error) {
+	r := readFromBytes(byts)
+	return parseAll(r)
+}
