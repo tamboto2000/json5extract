@@ -21,10 +21,6 @@ var (
 const (
 	DoubleQuotedStr = iota
 	SingleQuotedStr
-	// UnquotedStr only can be used as object key, not value
-	// UnquotedStr string cannot contain any escaped character except unicode (\u{hex}{hex}{hex}{hex}).
-	// UnquotedStr only valid if first character is latin, followed by any latin character, numeric, unicode, or underscore
-	UnquotedStr
 )
 
 // String represent JSON5 string type.
