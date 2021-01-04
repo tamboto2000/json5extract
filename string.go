@@ -308,7 +308,6 @@ func unescapeRunesToStr(chars []rune, ty int) string {
 
 			// null
 			if char == '0' {
-				newRunes = append(newRunes, 0)
 				continue
 			}
 
