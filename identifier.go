@@ -40,8 +40,6 @@ var rsvWords = [][]rune{
 	[]rune("super"),
 }
 
-var ctrlChars = []rune{'\b', '\f', '\n', '\r', '\t', '\v', ' '}
-
 // TestParseIdentifier test identifier name validity and return identifier name
 func TestParseIdentifier(byts []byte) (string, bool) {
 	r := readFromBytes(byts)
