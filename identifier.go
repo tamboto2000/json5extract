@@ -5,11 +5,6 @@ import (
 	"unicode"
 )
 
-// import (
-// 	"strconv"
-// 	"unicode"
-// )
-
 // This file contains parser method for unquoted string object identifier. This string can't be used as value, only
 // can be used as object identifier
 
