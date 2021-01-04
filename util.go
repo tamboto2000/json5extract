@@ -34,13 +34,3 @@ func removeSliceIndex(s []rune, i int) []rune {
 	s[len(s)-1], s[i] = s[i], s[len(s)-1]
 	return s[:len(s)-1]
 }
-
-func isCharCtrlChar(char rune) bool {
-	for _, c := range ctrlChars {
-		if char == c {
-			return true
-		}
-	}
-
-	return false
-}
