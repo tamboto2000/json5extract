@@ -1,20 +1,14 @@
 package json5extract
 
 import (
+	"bufio"
 	"bytes"
 	"strconv"
+	"unicode"
 )
 
 var (
-	quote          = byte(39)
-	doubleQuote    = byte(34)
-	reverseSolidus = byte(92)
-	solidus        = byte(47)
-	zero           = byte(48)
-)
-
-var (
-	hex = []byte{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F'}
+	hex = []rune{'1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F'}
 )
 
 // String types
@@ -27,8 +21,8 @@ const (
 type String struct {
 	// String type
 	Type  int
-	Raw   []byte
 	Value string
+	raw   []rune
 }
 
 // Kind return JSON5 kind
@@ -36,37 +30,49 @@ func (str *String) Kind() int {
 	return KindStr
 }
 
-func (str *String) pushByt(char byte) {
-	str.Raw = append(str.Raw, char)
+// RawBytes return raw JSON5 to []byte
+func (str *String) RawBytes() []byte {
+	return runesToUTF8(str.raw)
+}
+
+// RawRunes return raw JSON5 to []rune
+func (str *String) RawRunes() []rune {
+	return str.raw
+}
+
+// Push rune to stack
+func (str *String) push(char rune) {
+	str.raw = append(str.raw, char)
 }
 
 func parseStr(r reader, ty int) (*String, error) {
-	str := &String{Type: DoubleQuotedStr}
-
+	str := &String{Type: ty, raw: make([]rune, 0)}
 	if ty == DoubleQuotedStr {
-		str.pushByt('"')
+		str.push('"')
 	} else {
-		str.pushByt('\'')
+		str.push('\'')
 	}
 
 	for {
-		char, err := r.ReadByte()
+		char, _, err := r.ReadRune()
 		if err != nil {
 			return nil, err
 		}
 
-		if char == reverseSolidus {
-			str.pushByt(char)
-			char, err := r.ReadByte()
+		// detect escaped char
+		if char == '\\' {
+			str.push(char)
+
+			char, _, err := r.ReadRune()
 			if err != nil {
 				return nil, err
 			}
 
-			str.pushByt(char)
-			// if unicode (\u), check the hexs values
-			if char == 117 {
+			// unicode
+			if char == 'u' {
+				str.push(char)
 				for i := 0; i < 4; i++ {
-					char, err := r.ReadByte()
+					char, _, err := r.ReadRune()
 					if err != nil {
 						return nil, err
 					}
@@ -75,16 +81,17 @@ func parseStr(r reader, ty int) (*String, error) {
 						return nil, ErrInvalidFormat
 					}
 
-					str.pushByt(char)
+					str.push(char)
 				}
 
 				continue
 			}
 
-			// if hexa (\x), check the hexs values
-			if char == 120 {
+			// hexa
+			if char == 'x' {
+				str.push(char)
 				for i := 0; i < 2; i++ {
-					char, err := r.ReadByte()
+					char, _, err := r.ReadRune()
 					if err != nil {
 						return nil, err
 					}
@@ -93,259 +100,268 @@ func parseStr(r reader, ty int) (*String, error) {
 						return nil, ErrInvalidFormat
 					}
 
-					str.pushByt(char)
+					str.push(char)
 				}
 
 				continue
 			}
 
+			// numeric
+			if unicode.IsNumber(char) && char != '0' {
+				return nil, ErrInvalidFormat
+			}
+
+			str.push(char)
 			continue
 		}
 
-		if char == '"' && ty == DoubleQuotedStr {
-			str.pushByt(char)
-			break
-		}
-
-		if char == '\'' && ty == SingleQuotedStr {
-			str.pushByt(char)
-			break
-		}
-
-		// line terminator (\n)
+		// detect line terminator (line feed or return carriage and line feed)
 		if char == '\n' {
-			rawLen := len(str.Raw)
-			prev1Char := str.Raw[rawLen-1]
-			prev2Char := str.Raw[rawLen-2]
-			prev3Char := str.Raw[rawLen-3]
-
-			if prev1Char == reverseSolidus {
-				if prev2Char == reverseSolidus {
-					return nil, ErrInvalidFormat
-				}
-
-				continue
-			}
-
-			if prev1Char == '\r' {
-				if prev2Char != reverseSolidus {
-					return nil, ErrInvalidFormat
-				}
-
-				if prev3Char == reverseSolidus {
+			rawlen := len(str.raw)
+			prev1char := str.raw[rawlen-1]
+			if prev1char == '\\' {
+				prev2char := str.raw[rawlen-2]
+				if prev2char == '\\' {
 					return nil, ErrInvalidFormat
 				}
 			}
+
+			if prev1char == '\r' {
+				prev2char := str.raw[rawlen-2]
+				if prev2char != '\\' {
+					return nil, ErrInvalidFormat
+				}
+
+				prev3char := str.raw[rawlen-3]
+				if prev3char == '\\' {
+					return nil, ErrInvalidFormat
+				}
+			}
+
+			str.push(char)
+			continue
 		}
 
-		// line terminator (\r)
+		// detect line terminator (return carriage)
 		if char == '\r' {
-			rawLen := len(str.Raw)
-			prev1Char := str.Raw[rawLen-1]
-			prev2Char := str.Raw[rawLen-2]
-			if prev1Char != reverseSolidus {
+			rawlen := len(str.raw)
+			prev1char := str.raw[rawlen-1]
+			if prev1char != '\\' {
 				return nil, ErrInvalidFormat
 			}
 
-			if prev2Char == reverseSolidus {
+			prev2char := str.raw[rawlen-2]
+			if prev2char == '\\' {
 				return nil, ErrInvalidFormat
 			}
+
+			str.push(char)
+			continue
 		}
 
-		// line terminator (line separator or paragraph separator)
-		if char == 226 {
-			lineSp := make([]byte, 3)
-			lineSp[0] = char
-			isLineSp := false
-			for i := 0; i < 2; i++ {
-				char, _ := r.ReadByte()
-				lineSp[i+1] = char
-
-				if i == 0 && char != 128 {
-					break
-				}
-
-				if i == 1 && char == 168 || char == 169 {
-					isLineSp = true
-				}
+		// detect line terminator (line separator)
+		if char == '\u2028' {
+			rawlen := len(str.raw)
+			prev1char := str.raw[rawlen-1]
+			if prev1char != '\\' {
+				return nil, ErrInvalidFormat
 			}
 
-			for _, c := range lineSp {
-				str.pushByt(c)
+			prev2char := str.raw[rawlen-2]
+			if prev2char == '\\' {
+				return nil, ErrInvalidFormat
 			}
 
-			if isLineSp {
-				rawLen := len(str.Raw)
-				prev1Char := str.Raw[rawLen-1]
-				prev2Char := str.Raw[rawLen-2]
-				if prev1Char != reverseSolidus {
-					return nil, ErrInvalidFormat
-				}
+			str.push(char)
+			continue
+		}
 
-				if prev2Char == reverseSolidus {
-					return nil, ErrInvalidFormat
-				}
+		// detect line terminator (line paragraph separator)
+		if char == '\u2029' {
+			str.push(char)
+			rawlen := len(str.raw)
+			prev1char := str.raw[rawlen-1]
+			if prev1char != '\\' {
+				return nil, ErrInvalidFormat
+			}
 
-				continue
+			prev2char := str.raw[rawlen-2]
+			if prev2char == '\\' {
+				return nil, ErrInvalidFormat
 			}
 
 			continue
 		}
 
-		str.pushByt(char)
-	}
+		// detect string punctuation (double quote)
+		if char == '"' && ty == DoubleQuotedStr {
+			rawlen := len(str.raw)
+			prev1char := str.raw[rawlen-1]
+			if prev1char != '\\' {
+				str.push(char)
+				break
+			}
 
-	str.Value = string(bytes.Trim(unescapeByts(str.Raw), `"`))
+			prev2char := str.raw[rawlen-2]
+			if prev2char == '\\' {
+				str.push(char)
+				break
+			}
 
-	return str, nil
-}
-
-func parseSingleQuoteStr(r reader) (*String, error) {
-	str := &String{Type: SingleQuotedStr}
-
-	return str, nil
-}
-
-func isCharHex(char byte) bool {
-	for _, c := range hex {
-		if char == c {
-			return true
+			str.push(char)
+			continue
 		}
+
+		// detect string punctuation (single quote)
+		if char == '\'' && ty == SingleQuotedStr {
+			rawlen := len(str.raw)
+			prev1char := str.raw[rawlen-1]
+			if prev1char != '\\' {
+				str.push(char)
+				break
+			}
+
+			prev2char := str.raw[rawlen-2]
+			if prev2char == '\\' {
+				str.push(char)
+				break
+			}
+
+			str.push(char)
+			continue
+		}
+
+		str.push(char)
 	}
 
-	return false
+	str.Value = unescapeRunesToStr(str.raw, str.Type)
+
+	return str, nil
 }
 
-func unescapeByts(byts []byte) []byte {
-	newByts := make([]byte, 0)
-	r := readFromBytes(byts)
+func unescapeRunesToStr(chars []rune, ty int) string {
+	newRunes := make([]rune, 0)
+	r := bufio.NewReader(bytes.NewReader(runesToUTF8(chars)))
+
+	// skip first char
+	r.ReadRune()
 	for {
-		char, err := r.ReadByte()
+		char, _, err := r.ReadRune()
 		if err != nil {
 			break
 		}
 
-		if char == reverseSolidus {
-			char, _ := r.ReadByte()
+		// detect escape
+		if char == '\\' {
+			char, _, _ := r.ReadRune()
 
-			// unescape unicode
+			// unicode
 			if char == 'u' {
-				hexByts := make([]byte, 0)
+				hexs := make([]rune, 4)
 				for i := 0; i < 4; i++ {
-					char, _ := r.ReadByte()
-					hexByts = append(hexByts, char)
+					char, _, _ := r.ReadRune()
+					hexs[i] = char
 				}
 
-				uq, _ := strconv.Unquote(`'\u` + string(hexByts) + `'`)
-				newByts = append(newByts, []byte(uq)...)
+				dec, _ := strconv.ParseInt(string(hexs), 16, 64)
+				newRunes = append(newRunes, rune(dec))
 				continue
 			}
 
-			// unescape hex
+			// hex
 			if char == 'x' {
-				hexByts := make([]byte, 0)
+				hexs := make([]rune, 2)
 				for i := 0; i < 2; i++ {
-					char, _ := r.ReadByte()
-					hexByts = append(hexByts, char)
+					char, _, _ := r.ReadRune()
+					hexs[i] = char
 				}
 
-				decimal, _ := strconv.ParseInt(string(hexByts), 16, 64)
-				newByts = append(newByts, byte(decimal))
+				dec, _ := strconv.ParseInt(string(hexs), 16, 64)
+				newRunes = append(newRunes, rune(dec))
 				continue
 			}
 
-			// backspace
-			if char == 'b' {
-				newByts = append(newByts, '\b')
+			// line terminator (return carriage or return carriage and line feed)
+			if char == '\r' {
+				char, _, _ := r.ReadRune()
+				if char == '\n' {
+					continue
+				}
+
 				continue
 			}
 
-			// form feed
-			if char == 'f' {
-				newByts = append(newByts, '\f')
+			// line terminator (line feed)
+			if char == '\n' {
 				continue
 			}
 
-			// line feed
-			if char == 'n' {
-				newByts = append(newByts, '\n')
+			// line terminator (line separator)
+			if char == '\u2028' {
 				continue
 			}
 
-			// carriage return
-			if char == 'r' {
-				newByts = append(newByts, '\r')
-				continue
-			}
-
-			// horizontal tab
-			if char == 't' {
-				newByts = append(newByts, '\t')
-				continue
-			}
-
-			// vertical tab
-			if char == 'v' {
-				newByts = append(newByts, '\v')
+			// line terminator (paragraph separator)
+			if char == '\u2029' {
 				continue
 			}
 
 			// null
 			if char == '0' {
-				newByts = append(newByts, []byte(`\0`)...)
+				newRunes = append(newRunes, 0)
 				continue
 			}
 
-			// line terminator (\r with \n or just \r)
-			if char == '\r' {
-				char, _ := r.ReadByte()
-				if char != '\n' {
-					newByts = append(newByts, char)
-				}
-
+			// backspace
+			if char == 'b' {
+				newRunes = append(newRunes, '\b')
 				continue
 			}
 
-			// line terminator (\n)
-			if char == '\n' {
+			// form feed
+			if char == 'f' {
+				newRunes = append(newRunes, '\f')
 				continue
 			}
 
-			// line terminator (line separator or paragraph separator)
-			if char == 226 {
-				lineSp := make([]byte, 3)
-				lineSp[0] = char
-				isLineSp := false
-				for i := 0; i < 2; i++ {
-					char, _ := r.ReadByte()
-					lineSp[i+1] = char
-
-					if i == 0 && char != 128 {
-						break
-					}
-
-					if i == 1 && char == 168 || char == 169 {
-						isLineSp = true
-					}
-				}
-
-				if isLineSp {
-					continue
-				} else {
-					for _, c := range lineSp {
-						newByts = append(newByts, c)
-					}
-				}
-
+			// line feed
+			if char == 'n' {
+				newRunes = append(newRunes, '\n')
 				continue
 			}
 
-			newByts = append(newByts, char)
+			// carriage return
+			if char == 'r' {
+				newRunes = append(newRunes, '\r')
+				continue
+			}
+
+			// horizontal tab
+			if char == 't' {
+				newRunes = append(newRunes, '\v')
+				continue
+			}
+
+			// vertical tab
+			if char == 'v' {
+				newRunes = append(newRunes, '\v')
+				continue
+			}
+
+			newRunes = append(newRunes, char)
 			continue
 		}
 
-		newByts = append(newByts, char)
+		if char == '"' && ty == DoubleQuotedStr {
+			break
+		}
+
+		if char == '\'' && ty == SingleQuotedStr {
+			break
+		}
+
+		newRunes = append(newRunes, char)
 	}
 
-	return newByts
+	return string(newRunes)
 }

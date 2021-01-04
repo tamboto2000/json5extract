@@ -11,6 +11,10 @@ const (
 type JSON5 interface {
 	// Kind return JSON5 kind
 	Kind() int
+	// Return raw JSON5 in []byte format
+	RawBytes() []byte
+	// Return raw JSON5 in []rune format
+	RawRunes() []rune
 }
 
 func parseAll(r reader) ([]JSON5, error) {
@@ -33,7 +37,7 @@ func parseAll(r reader) ([]JSON5, error) {
 
 func parse(r reader) (JSON5, error) {
 	for {
-		char, err := r.ReadByte()
+		char, _, err := r.ReadRune()
 		if err != nil {
 			if err == io.EOF {
 				break
@@ -50,7 +54,7 @@ func parse(r reader) (JSON5, error) {
 					break
 				}
 
-				r.UnreadByte()
+				r.UnreadRune()
 				return nil, err
 			}
 
@@ -65,7 +69,7 @@ func parse(r reader) (JSON5, error) {
 					break
 				}
 
-				r.UnreadByte()
+				r.UnreadRune()
 				return nil, err
 			}
 
