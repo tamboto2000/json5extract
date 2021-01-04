@@ -55,7 +55,6 @@ func TestParseIdentifier(byts []byte) (string, bool) {
 
 // Identifier name obey the  ECMAScript 5.1 Lexical Grammar, see
 // https://www.ecma-international.org/ecma-262/5.1/#sec-7.6 "Identifier Names and Identifiers"
-
 func parseIdentifier(r reader) (string, error) {
 	rs := make([]rune, 0)
 	isIDEnd := false
