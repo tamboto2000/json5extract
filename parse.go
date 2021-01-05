@@ -5,6 +5,7 @@ import "io"
 // JSON5 kinds
 const (
 	KindStr = iota
+	KindNum
 )
 
 // JSON5 is interface for parsed JSON5 type
@@ -64,6 +65,21 @@ func parse(r reader) (JSON5, error) {
 		// parse single quoted string
 		if char == '\'' {
 			json5, err := parseStr(r, SingleQuotedStr)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
+				r.UnreadRune()
+				return nil, err
+			}
+
+			return json5, nil
+		}
+
+		// parse number
+		if isCharNumBegin(char) {
+			json5, err := parseNum(r, char)
 			if err != nil {
 				if err == io.EOF {
 					break

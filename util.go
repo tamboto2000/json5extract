@@ -1,6 +1,7 @@
 package json5extract
 
 import (
+	"unicode"
 	"unicode/utf8"
 )
 
@@ -49,6 +50,34 @@ func isReservedWord(chars []rune) bool {
 
 			return true
 		}
+	}
+
+	return false
+}
+
+func isCharNumBegin(char rune) bool {
+	if unicode.IsNumber(char) {
+		return true
+	}
+
+	if char == '-' {
+		return true
+	}
+
+	if char == '+' {
+		return true
+	}
+
+	if char == '.' {
+		return true
+	}
+
+	if char == 'I' {
+		return true
+	}
+
+	if char == 'N' {
+		return true
 	}
 
 	return false
