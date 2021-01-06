@@ -56,7 +56,7 @@ func parseFalseBool(r reader) (*Boolean, error) {
 	for _, c := range boolFalse {
 		char, _, err := r.ReadRune()
 		if err != nil {
-			return nil, err
+			return nil, ErrInvalidFormat
 		}
 
 		if char != c {
