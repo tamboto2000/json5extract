@@ -7,6 +7,7 @@ const (
 	KindStr = iota
 	KindNum
 	KindBool
+	KindNull
 )
 
 // JSON5 is interface for parsed JSON5 type
@@ -111,6 +112,21 @@ func parse(r reader) (JSON5, error) {
 		// parse false boolean
 		if char == 'f' {
 			json5, err := parseFalseBool(r)
+			if err != nil {
+				if err == io.EOF {
+					break
+				}
+
+				r.UnreadRune()
+				return nil, err
+			}
+
+			return json5, nil
+		}
+
+		// parse null
+		if char == 'n' {
+			json5, err := parseNull(r)
 			if err != nil {
 				if err == io.EOF {
 					break
