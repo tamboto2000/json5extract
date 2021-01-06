@@ -7,6 +7,7 @@ var (
 	boolTrue = []rune("rue")
 )
 
+// Boolean represent JSON5 boolean
 type Boolean struct {
 	raw   []rune
 	Value bool
