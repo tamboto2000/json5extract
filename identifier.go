@@ -8,7 +8,7 @@ import (
 // This file contains parser method for unquoted string object identifier. This string can't be used as value, only
 // can be used as object identifier
 
-// This is list of reserved words that can't be used as object identifier name,
+// This is list of reserved words that can't be used as unquoted object identifier name,
 // also include future reserved words, and a list of considered future reserved words
 // References:
 // Reserved words
@@ -63,7 +63,7 @@ func parseIdentifier(r reader) (string, error) {
 		}
 
 		if char == '"' {
-			str, err := parseStr(r, DoubleQuotedStr)
+			str, err := parseStr(r, doubleQuotedStr)
 			if err != nil {
 				return "", err
 			}
@@ -86,11 +86,11 @@ func parseIdentifier(r reader) (string, error) {
 				break
 			}
 
-			return str.Value, nil
+			return str.val.(string), nil
 		}
 
 		if char == '\'' {
-			str, err := parseStr(r, SingleQuotedStr)
+			str, err := parseStr(r, singleQuotedStr)
 			if err != nil {
 				return "", err
 			}
@@ -113,7 +113,7 @@ func parseIdentifier(r reader) (string, error) {
 				break
 			}
 
-			return str.Value, nil
+			return str.val.(string), nil
 		}
 
 		r.UnreadRune()

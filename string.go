@@ -13,41 +13,13 @@ var (
 
 // String types
 const (
-	DoubleQuotedStr = iota
-	SingleQuotedStr
+	doubleQuotedStr = iota
+	singleQuotedStr
 )
 
-// String represent JSON5 string type.
-type String struct {
-	// String type
-	Type  int
-	Value string
-	raw   []rune
-}
-
-// Kind return JSON5 kind
-func (str *String) Kind() int {
-	return KindStr
-}
-
-// RawBytes return raw JSON5 to []byte
-func (str *String) RawBytes() []byte {
-	return runesToUTF8(str.raw)
-}
-
-// RawRunes return raw JSON5 to []rune
-func (str *String) RawRunes() []rune {
-	return str.raw
-}
-
-// Push rune to stack
-func (str *String) push(char rune) {
-	str.raw = append(str.raw, char)
-}
-
-func parseStr(r reader, ty int) (*String, error) {
-	str := &String{Type: ty, raw: make([]rune, 0)}
-	if ty == DoubleQuotedStr {
+func parseStr(r reader, ty int) (*JSON5, error) {
+	str := &JSON5{Kind: String}
+	if ty == doubleQuotedStr {
 		str.push('"')
 	} else {
 		str.push('\'')
@@ -194,7 +166,7 @@ func parseStr(r reader, ty int) (*String, error) {
 		}
 
 		// detect string punctuation (double quote)
-		if char == '"' && ty == DoubleQuotedStr {
+		if char == '"' && ty == doubleQuotedStr {
 			rawlen := len(str.raw)
 			prev1char := str.raw[rawlen-1]
 			if prev1char != '\\' {
@@ -213,7 +185,7 @@ func parseStr(r reader, ty int) (*String, error) {
 		}
 
 		// detect string punctuation (single quote)
-		if char == '\'' && ty == SingleQuotedStr {
+		if char == '\'' && ty == singleQuotedStr {
 			rawlen := len(str.raw)
 			prev1char := str.raw[rawlen-1]
 			if prev1char != '\\' {
@@ -234,7 +206,7 @@ func parseStr(r reader, ty int) (*String, error) {
 		str.push(char)
 	}
 
-	str.Value = unescapeRunesToStr(str.raw, str.Type)
+	str.val = unescapeRunesToStr(str.raw, ty)
 
 	return str, nil
 }
@@ -351,11 +323,11 @@ func unescapeRunesToStr(chars []rune, ty int) string {
 			continue
 		}
 
-		if char == '"' && ty == DoubleQuotedStr {
+		if char == '"' && ty == doubleQuotedStr {
 			break
 		}
 
-		if char == '\'' && ty == SingleQuotedStr {
+		if char == '\'' && ty == singleQuotedStr {
 			break
 		}
 

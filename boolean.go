@@ -7,30 +7,8 @@ var (
 	boolTrue = []rune("rue")
 )
 
-// Boolean represent JSON5 boolean
-type Boolean struct {
-	raw   []rune
-	Value bool
-}
-
-func (bl *Boolean) Kind() int {
-	return KindBool
-}
-
-func (bl *Boolean) RawRunes() []rune {
-	return bl.raw
-}
-
-func (bl *Boolean) RawBytes() []byte {
-	return runesToUTF8(bl.raw)
-}
-
-func (bl *Boolean) push(char rune) {
-	bl.raw = append(bl.raw, char)
-}
-
-func parseTrueBool(r reader) (*Boolean, error) {
-	bl := new(Boolean)
+func parseTrueBool(r reader) (*JSON5, error) {
+	bl := &JSON5{Kind: Boolean}
 	bl.push('t')
 	for _, c := range boolTrue {
 		char, _, err := r.ReadRune()
@@ -45,13 +23,13 @@ func parseTrueBool(r reader) (*Boolean, error) {
 		bl.push(char)
 	}
 
-	bl.Value = true
+	bl.val = true
 
 	return bl, nil
 }
 
-func parseFalseBool(r reader) (*Boolean, error) {
-	bl := new(Boolean)
+func parseFalseBool(r reader) (*JSON5, error) {
+	bl := &JSON5{Kind: Boolean}
 	bl.push('f')
 	for _, c := range boolFalse {
 		char, _, err := r.ReadRune()
@@ -66,7 +44,7 @@ func parseFalseBool(r reader) (*Boolean, error) {
 		bl.push(char)
 	}
 
-	bl.Value = false
+	bl.val = false
 
 	return bl, nil
 }

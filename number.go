@@ -7,27 +7,15 @@ import (
 	"unicode"
 )
 
-// Number types
-const (
-	Int = iota
-	Float
-	Infinity
-	NaN
-)
-
-// Number represent JSON5 number
-type Number struct {
-	Type     int
-	IntValue int64
-	// Infinity and NaN is stored in FloatValue field.
-	FloatValue float64
-	// Hexadecimal number (0{x or X}{hex1}{hex2}...{hexn})
-	IsHex bool
-	//Exponent number ({num1}{num2}...{numn}{e or E}{num1}{num2}...{numn})
-	WithExp    bool
-	IsPositive bool
-	IsNegative bool
-	raw        []rune
+type numStates struct {
+	isInt      bool
+	isFloat    bool
+	isHex      bool
+	withExp    bool
+	isPositive bool
+	isNegative bool
+	isInfinity bool
+	isNan      bool
 }
 
 var (
@@ -37,33 +25,18 @@ var (
 	nan = []rune("aN")
 )
 
-// Kind return JSON5 kind
-func (num *Number) Kind() int {
-	return KindNum
-}
-
-// RawBytes return raw JSON5 to []byte
-func (num *Number) RawBytes() []byte {
-	return runesToUTF8(num.raw)
-}
-
-// RawRunes return raw JSON5 to []rune
-func (num *Number) RawRunes() []rune {
-	return num.raw
-}
-
-func (num *Number) push(char rune) {
-	num.raw = append(num.raw, char)
-}
-
-func parseNum(r reader, firstC rune) (*Number, error) {
-	num := &Number{Type: Int, IsPositive: true}
+func parseNum(r reader, firstC rune) (*JSON5, error) {
+	num := new(JSON5)
 	num.push(firstC)
+	state := new(numStates)
+
+	state.isPositive = true
+	state.isInt = true
 
 	if isMinOrPlusSign(firstC) {
 		if firstC == '-' {
-			num.IsPositive = false
-			num.IsNegative = true
+			state.isPositive = false
+			state.isNegative = true
 		}
 
 		char, _, err := r.ReadRune()
@@ -95,7 +68,8 @@ func parseNum(r reader, firstC rune) (*Number, error) {
 
 		if char == '.' {
 			num.push(char)
-			num.Type = Float
+			state.isFloat = true
+			state.isInt = false
 
 			char, _, err := r.ReadRune()
 			if err != nil {
@@ -108,7 +82,7 @@ func parseNum(r reader, firstC rune) (*Number, error) {
 				return nil, ErrInvalidFormat
 			}
 
-			if err := parseOnlyNum(r, num); err != nil {
+			if err := parseOnlyNum(r, num, state); err != nil {
 				return nil, err
 			}
 
@@ -117,11 +91,11 @@ func parseNum(r reader, firstC rune) (*Number, error) {
 
 		if char == 'e' || char == 'E' {
 			num.push(char)
-			if err := parseExp(r, num); err != nil {
+			if err := parseExp(r, num, state); err != nil {
 				return nil, err
 			}
 
-			if err := parseOnlyNum(r, num); err != nil {
+			if err := parseOnlyNum(r, num, state); err != nil {
 				return nil, err
 			}
 
@@ -141,7 +115,7 @@ func parseNum(r reader, firstC rune) (*Number, error) {
 				return nil, ErrInvalidFormat
 			}
 
-			num.IsHex = true
+			state.isHex = true
 			if err := parseOnlyHex(r, num); err != nil {
 				return nil, err
 			}
@@ -172,39 +146,40 @@ func parseNum(r reader, firstC rune) (*Number, error) {
 		}
 
 		num.push(char)
-		num.Type = Float
+		state.isFloat = true
+		state.isInt = false
 
-		if err := parseOnlyNum(r, num); err != nil {
+		if err := parseOnlyNum(r, num, state); err != nil {
 			return nil, err
 		}
 	}
 
 	if unicode.IsNumber(firstC) {
-		if err := parseOnlyNum(r, num); err != nil {
+		if err := parseOnlyNum(r, num, state); err != nil {
 			return nil, err
 		}
 	}
 
 	if firstC == 'I' {
-		if err := parseInf(r, num); err != nil {
+		if err := parseInf(r, num, state); err != nil {
 			return nil, err
 		}
 
-		num.Type = Infinity
+		state.isInfinity = true
 	}
 
 	if firstC == 'N' {
-		if err := parseNaN(r, num); err != nil {
+		if err := parseNaN(r, num, state); err != nil {
 			return nil, err
 		}
 
-		num.Type = NaN
+		state.isNan = true
 	}
 
 	return num, nil
 }
 
-func parseOnlyNum(r reader, num *Number) error {
+func parseOnlyNum(r reader, num *JSON5, state *numStates) error {
 	for {
 		char, _, err := r.ReadRune()
 		if err != nil {
@@ -217,27 +192,30 @@ func parseOnlyNum(r reader, num *Number) error {
 
 		if !unicode.IsNumber(char) {
 			if char == '.' {
-				if num.Type == Float {
+				if state.isFloat {
 					return ErrInvalidFormat
 				}
 
 				num.push(char)
-				num.Type = Float
+				state.isFloat = true
+				state.isInt = false
 				continue
 			}
 
 			if char == 'e' || char == 'E' {
-				if num.WithExp {
+				if state.withExp {
 					return ErrInvalidFormat
 				}
 
 				num.push(char)
 
-				if err := parseExp(r, num); err != nil {
+				if err := parseExp(r, num, state); err != nil {
 					return err
 				}
 
-				num.WithExp = true
+				state.withExp = true
+				state.isFloat = true
+				state.isInt = false
 				continue
 			}
 
@@ -256,26 +234,28 @@ func parseOnlyNum(r reader, num *Number) error {
 		num.push(char)
 	}
 
-	if num.Type == Float {
+	if state.isFloat {
 		i, _ := strconv.ParseFloat(string(num.raw), 64)
-		num.FloatValue = i
+		num.Kind = Float
+		num.val = i
 	}
 
-	if num.Type == Int {
-		if num.WithExp {
-			num.Type = Float
+	if state.isInt {
+		if state.withExp {
 			i, _ := strconv.ParseFloat(string(num.raw), 64)
-			num.FloatValue = i
+			num.Kind = Float
+			num.val = i
 		}
 
 		i, _ := strconv.ParseInt(string(num.raw), 10, 64)
-		num.IntValue = i
+		num.Kind = Integer
+		num.val = i
 	}
 
 	return nil
 }
 
-func parseOnlyHex(r reader, num *Number) error {
+func parseOnlyHex(r reader, num *JSON5) error {
 	for {
 		char, _, err := r.ReadRune()
 		if err != nil {
@@ -303,13 +283,14 @@ func parseOnlyHex(r reader, num *Number) error {
 	}
 
 	i, _ := strconv.ParseInt(string(num.raw), 0, 64)
-	num.IntValue = i
+	num.val = i
+	num.Kind = Integer
 
 	return nil
 }
 
 // parse exponent
-func parseExp(r reader, num *Number) error {
+func parseExp(r reader, num *JSON5, state *numStates) error {
 	for i := 0; i < 2; i++ {
 		char, _, err := r.ReadRune()
 		if err != nil {
@@ -327,7 +308,7 @@ func parseExp(r reader, num *Number) error {
 			}
 
 			if isCharHex(char) {
-				if !num.IsHex {
+				if !state.isHex {
 					return ErrInvalidFormat
 				}
 
@@ -343,7 +324,7 @@ func parseExp(r reader, num *Number) error {
 			}
 
 			if isCharHex(char) {
-				if !num.IsHex {
+				if !state.isHex {
 					return ErrInvalidFormat
 				}
 
@@ -354,11 +335,11 @@ func parseExp(r reader, num *Number) error {
 		}
 	}
 
-	num.WithExp = true
+	state.withExp = true
 	return nil
 }
 
-func parseInf(r reader, num *Number) error {
+func parseInf(r reader, num *JSON5, state *numStates) error {
 	for _, c := range inf {
 		char, _, err := r.ReadRune()
 		if err != nil {
@@ -372,17 +353,18 @@ func parseInf(r reader, num *Number) error {
 		num.push(char)
 	}
 
-	char := num.raw[0]
-	if char == '-' {
-		num.FloatValue = math.Inf(-0)
+	if state.isNegative {
+		num.val = math.Inf(-1)
 	} else {
-		num.FloatValue = math.Inf(0)
+		num.val = math.Inf(1)
 	}
+
+	num.Kind = Infinity
 
 	return nil
 }
 
-func parseNaN(r reader, num *Number) error {
+func parseNaN(r reader, num *JSON5, state *numStates) error {
 	for _, c := range nan {
 		char, _, err := r.ReadRune()
 		if err != nil {
@@ -396,7 +378,13 @@ func parseNaN(r reader, num *Number) error {
 		num.push(char)
 	}
 
-	num.FloatValue = math.NaN()
+	if state.isNegative {
+		num.val = -math.NaN()
+	} else {
+		num.val = math.NaN()
+	}
+
+	num.Kind = NaN
 
 	return nil
 }
