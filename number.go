@@ -44,6 +44,14 @@ func parseNum(r reader, firstC rune) (*JSON5, error) {
 			return nil, err
 		}
 
+		if isMinOrPlusSign(char) {
+			return nil, ErrInvalidFormat
+		}
+
+		if unicode.IsControl(char) || char == ' ' {
+			return nil, ErrInvalidFormat
+		}
+
 		num.push(char)
 		firstC = char
 	}
@@ -63,6 +71,7 @@ func parseNum(r reader, firstC rune) (*JSON5, error) {
 		}
 
 		if char == ',' || char == '}' || char == ']' {
+			r.UnreadRune()
 			return num, nil
 		}
 
