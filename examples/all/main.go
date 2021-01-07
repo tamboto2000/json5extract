@@ -10,8 +10,15 @@ func main() {
 	raw := []byte(
 		`
 {
+	// this is single line comment	
 	$id_num: 123,
 	"msg": "hello world!",
+
+	/* 
+	this is
+	multi line comment
+	*/
+
 	name: 'Franklin Collin Tamboto',
 	'email': "tamboto2000@gmail.com",
 	data: [123, 0x456, 'meta'],

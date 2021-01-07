@@ -47,6 +47,15 @@ func parseObj(r reader) (*JSON5, error) {
 			break
 		}
 
+		// comment
+		if char == '/' {
+			if err := parseComment(r); err != nil {
+				return nil, err
+			}
+
+			continue
+		}
+
 		r.UnreadRune()
 		isEnd, err := parseKeyVal(r, obj)
 		if err != nil {
@@ -84,6 +93,14 @@ func parseKeyVal(r reader, obj *JSON5) (isEnd bool, err error) {
 			continue
 		}
 
+		if char == '/' {
+			if err := parseComment(r); err != nil {
+				return isEnd, err
+			}
+
+			continue
+		}
+
 		r.UnreadRune()
 		if id, str, err := parseIdentifier(r); err == nil {
 			obj.pushRns([]rune(str + ":"))
@@ -102,4 +119,70 @@ func parseKeyVal(r reader, obj *JSON5) (isEnd bool, err error) {
 	}
 
 	return isEnd, nil
+}
+
+func parseComment(r reader) error {
+	char, _, err := r.ReadRune()
+	if err != nil {
+		if err == io.EOF {
+			return ErrInvalidFormat
+		}
+
+		return err
+	}
+
+	// single line comment
+	if char == '/' {
+		for {
+			char, _, err := r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return ErrInvalidFormat
+				}
+
+				return err
+			}
+
+			if char == '\r' || char == '\n' {
+				break
+			}
+		}
+
+		return nil
+	}
+
+	// multi line comment
+	if char == '*' {
+		for {
+			char, _, err := r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return ErrInvalidFormat
+				}
+
+				return err
+			}
+
+			if char == '*' {
+				char, _, err := r.ReadRune()
+				if err != nil {
+					if err == io.EOF {
+						return ErrInvalidFormat
+					}
+
+					return err
+				}
+
+				if char != '/' {
+					return ErrInvalidFormat
+				}
+
+				break
+			}
+		}
+
+		return nil
+	}
+
+	return ErrInvalidFormat
 }
