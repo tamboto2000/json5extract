@@ -38,7 +38,7 @@ var rsvWords = [][]rune{
 // TestParseIdentifier test identifier name validity and return identifier name
 func TestParseIdentifier(byts []byte) (string, bool) {
 	r := readFromBytes(byts)
-	id, err := parseIdentifier(r)
+	id, _, err := parseIdentifier(r)
 	if err != nil {
 		return "", false
 	}
@@ -48,14 +48,14 @@ func TestParseIdentifier(byts []byte) (string, bool) {
 
 // Identifier name obey the  ECMAScript 5.1 Lexical Grammar, see
 // https://www.ecma-international.org/ecma-262/5.1/#sec-7.6 "Identifier Names and Identifiers"
-func parseIdentifier(r reader) (string, error) {
+func parseIdentifier(r reader) (id, raw string, err error) {
 	rs := make([]rune, 0)
 	isIDEnd := false
 
 	for {
 		char, _, err := r.ReadRune()
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 
 		if unicode.IsControl(char) {
@@ -65,14 +65,14 @@ func parseIdentifier(r reader) (string, error) {
 		if char == '"' {
 			str, err := parseStr(r, doubleQuotedStr)
 			if err != nil {
-				return "", err
+				return "", "", err
 			}
 
 			// find terminator
 			for {
 				char, _, err := r.ReadRune()
 				if err != nil {
-					return "", err
+					return "", "", err
 				}
 
 				if unicode.IsControl(char) || char == ' ' {
@@ -80,26 +80,26 @@ func parseIdentifier(r reader) (string, error) {
 				}
 
 				if char != ':' {
-					return "", ErrInvalidFormat
+					return "", "", ErrInvalidFormat
 				}
 
 				break
 			}
 
-			return str.val.(string), nil
+			return str.val.(string), string(str.raw), nil
 		}
 
 		if char == '\'' {
 			str, err := parseStr(r, singleQuotedStr)
 			if err != nil {
-				return "", err
+				return "", "", err
 			}
 
 			// find terminator
 			for {
 				char, _, err := r.ReadRune()
 				if err != nil {
-					return "", err
+					return "", "", err
 				}
 
 				if unicode.IsControl(char) || char == ' ' {
@@ -107,13 +107,13 @@ func parseIdentifier(r reader) (string, error) {
 				}
 
 				if char != ':' {
-					return "", ErrInvalidFormat
+					return "", "", ErrInvalidFormat
 				}
 
 				break
 			}
 
-			return str.val.(string), nil
+			return str.val.(string), string(str.raw), nil
 		}
 
 		r.UnreadRune()
@@ -123,7 +123,7 @@ func parseIdentifier(r reader) (string, error) {
 	for {
 		char, _, err := r.ReadRune()
 		if err != nil {
-			return "", err
+			return "", "", err
 		}
 
 		if !unicode.IsLetter(char) && !unicode.IsNumber(char) {
@@ -140,18 +140,18 @@ func parseIdentifier(r reader) (string, error) {
 			if char == '\\' {
 				char, _, err := r.ReadRune()
 				if err != nil {
-					return "", err
+					return "", "", err
 				}
 
 				if char != 'u' {
-					return "", ErrInvalidFormat
+					return "", "", ErrInvalidFormat
 				}
 
 				hexs := make([]rune, 4)
 				for i := 0; i < 4; i++ {
 					char, _, err := r.ReadRune()
 					if err != nil {
-						return "", err
+						return "", "", err
 					}
 
 					hexs[i] = char
@@ -159,13 +159,13 @@ func parseIdentifier(r reader) (string, error) {
 
 				dec, err := strconv.ParseInt(string(hexs), 16, 64)
 				if err != nil {
-					return "", ErrInvalidFormat
+					return "", "", ErrInvalidFormat
 				}
 
 				decRune := rune(dec)
 				if !unicode.IsLetter(decRune) && !unicode.IsNumber(decRune) &&
 					decRune != '$' && decRune != '_' {
-					return "", ErrInvalidFormat
+					return "", "", ErrInvalidFormat
 				}
 
 				rs = append(rs, decRune)
@@ -186,21 +186,21 @@ func parseIdentifier(r reader) (string, error) {
 
 			if isIDEnd {
 				if char != ':' {
-					return "", ErrInvalidFormat
+					return "", "", ErrInvalidFormat
 				}
 
 				break
 			}
 
-			return "", ErrInvalidFormat
+			return "", "", ErrInvalidFormat
 		}
 
 		rs = append(rs, char)
 	}
 
 	if isReservedWord(rs) {
-		return "", ErrInvalidFormat
+		return "", "", ErrInvalidFormat
 	}
 
-	return string(rs), nil
+	return string(rs), string(rs), nil
 }

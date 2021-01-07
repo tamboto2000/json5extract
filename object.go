@@ -85,14 +85,14 @@ func parseKeyVal(r reader, obj *JSON5) (isEnd bool, err error) {
 		}
 
 		r.UnreadRune()
-		if str, err := parseIdentifier(r); err == nil {
+		if id, str, err := parseIdentifier(r); err == nil {
 			obj.pushRns([]rune(str + ":"))
 			val, err := parse(r)
 			if err != nil {
 				return isEnd, err
 			}
 
-			keyVal[str] = val
+			keyVal[id] = val
 			obj.pushRns(val.raw)
 			obj.val = keyVal
 			break
