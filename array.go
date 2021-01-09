@@ -29,18 +29,30 @@ func parseArray(r reader) (*JSON5, error) {
 			return arr, nil
 		}
 
-		r.UnreadRune()
-		json5, err := parse(r)
+		// comment
+		if char == '/' {
+			if _, err := parseComment(r); err != nil {
+				return nil, ErrInvalidFormat
+			}
+
+			continue
+		}
+
+		json5, err := parse(r, char)
 		if err != nil {
 			return nil, err
 		}
 
-		vals = append(vals, json5)
-		arr.pushRns(json5.RawRunes())
+		if json5 != nil {
+			vals = append(vals, json5)
+			arr.pushRns(json5.RawRunes())
+		}
+
 		break
 	}
 
 	onNext := false
+
 	for {
 		char, _, err := r.ReadRune()
 		if err != nil {
@@ -60,7 +72,6 @@ func parseArray(r reader) (*JSON5, error) {
 				return nil, ErrInvalidFormat
 			}
 
-			arr.push(char)
 			onNext = true
 			continue
 		}
@@ -70,15 +81,32 @@ func parseArray(r reader) (*JSON5, error) {
 			break
 		}
 
-		r.UnreadRune()
-		json5, err := parse(r)
-		if err != nil {
-			return nil, err
+		// comment
+		if char == '/' {
+			if _, err := parseComment(r); err != nil {
+				return nil, ErrInvalidFormat
+			}
+
+			continue
 		}
 
-		vals = append(vals, json5)
-		arr.pushRns(json5.RawRunes())
-		onNext = false
+		if onNext {
+			json, err := parse(r, char)
+			if err != nil {
+				return nil, err
+			}
+
+			if json != nil {
+				arr.push(',')
+				arr.pushRns(json.raw)
+				vals = append(vals, json)
+				onNext = false
+			}
+
+			continue
+		}
+
+		return nil, ErrInvalidFormat
 	}
 
 	arr.val = vals

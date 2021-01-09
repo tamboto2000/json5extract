@@ -1,7 +1,7 @@
 package json5extract
 
 import (
-	"strconv"
+	"io"
 	"unicode"
 )
 
@@ -35,172 +35,200 @@ var rsvWords = [][]rune{
 	[]rune("super"),
 }
 
-// TestParseIdentifier test identifier name validity and return identifier name
-func TestParseIdentifier(byts []byte) (string, bool) {
-	r := readFromBytes(byts)
-	id, _, err := parseIdentifier(r)
-	if err != nil {
-		return "", false
-	}
-
-	return id, true
-}
-
 // Identifier name obey the  ECMAScript 5.1 Lexical Grammar, see
 // https://www.ecma-international.org/ecma-262/5.1/#sec-7.6 "Identifier Names and Identifiers"
-func parseIdentifier(r reader) (id, raw string, err error) {
+func parseIdentifier(r reader, char rune) (id, raw []rune, err error) {
 	rs := make([]rune, 0)
-	isIDEnd := false
 
-	for {
-		char, _, err := r.ReadRune()
+	// double quoted string
+	if char == '"' {
+		// find key
+		str, err := parseStr(r, doubleQuotedStr)
 		if err != nil {
-			return "", "", err
+			return nil, nil, err
 		}
 
-		if unicode.IsControl(char) {
-			continue
-		}
-
-		if char == '"' {
-			str, err := parseStr(r, doubleQuotedStr)
+		// find key terminator
+		for {
+			char, _, err := r.ReadRune()
 			if err != nil {
-				return "", "", err
+				if err == io.EOF {
+					return nil, nil, ErrInvalidFormat
+				}
+
+				return nil, nil, err
 			}
 
-			// find terminator
-			for {
-				char, _, err := r.ReadRune()
-				if err != nil {
-					return "", "", err
-				}
-
-				if unicode.IsControl(char) || char == ' ' {
-					continue
-				}
-
-				if char != ':' {
-					return "", "", ErrInvalidFormat
-				}
-
-				break
+			if unicode.IsControl(char) || char == ' ' {
+				continue
 			}
 
-			return str.val.(string), string(str.raw), nil
+			if char == '/' {
+				if _, err := parseComment(r); err != nil {
+					return nil, nil, ErrInvalidFormat
+				}
+
+				continue
+			}
+
+			if char != ':' {
+				return nil, nil, ErrInvalidFormat
+			}
+
+			break
 		}
 
-		if char == '\'' {
-			str, err := parseStr(r, singleQuotedStr)
-			if err != nil {
-				return "", "", err
-			}
-
-			// find terminator
-			for {
-				char, _, err := r.ReadRune()
-				if err != nil {
-					return "", "", err
-				}
-
-				if unicode.IsControl(char) || char == ' ' {
-					continue
-				}
-
-				if char != ':' {
-					return "", "", ErrInvalidFormat
-				}
-
-				break
-			}
-
-			return str.val.(string), string(str.raw), nil
-		}
-
-		r.UnreadRune()
-		break
+		return []rune(str.val.(string)), str.raw, nil
 	}
 
-	for {
-		char, _, err := r.ReadRune()
+	// single quoted string
+	if char == '\'' {
+		// find key
+		str, err := parseStr(r, singleQuotedStr)
 		if err != nil {
-			return "", "", err
+			return nil, nil, err
 		}
 
-		if !unicode.IsLetter(char) && !unicode.IsNumber(char) {
-			if char == '$' {
-				rs = append(rs, char)
+		// find key terminator
+		for {
+			char, _, err := r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return nil, nil, ErrInvalidFormat
+				}
+
+				return nil, nil, err
+			}
+
+			if unicode.IsControl(char) || char == ' ' {
 				continue
 			}
 
-			if char == '_' {
-				rs = append(rs, char)
-				continue
-			}
-
-			if char == '\\' {
-				char, _, err := r.ReadRune()
-				if err != nil {
-					return "", "", err
+			// comment
+			if char == '/' {
+				if _, err := parseComment(r); err != nil {
+					return nil, nil, ErrInvalidFormat
 				}
-
-				if char != 'u' {
-					return "", "", ErrInvalidFormat
-				}
-
-				hexs := make([]rune, 4)
-				for i := 0; i < 4; i++ {
-					char, _, err := r.ReadRune()
-					if err != nil {
-						return "", "", err
-					}
-
-					hexs[i] = char
-				}
-
-				dec, err := strconv.ParseInt(string(hexs), 16, 64)
-				if err != nil {
-					return "", "", ErrInvalidFormat
-				}
-
-				decRune := rune(dec)
-				if !unicode.IsLetter(decRune) && !unicode.IsNumber(decRune) &&
-					decRune != '$' && decRune != '_' {
-					return "", "", ErrInvalidFormat
-				}
-
-				rs = append(rs, decRune)
 
 				continue
 			}
 
-			// identifier terminator
-			if char == ':' {
+			if char != ':' {
+				return nil, nil, ErrInvalidFormat
+			}
+
+			break
+		}
+
+		return []rune(str.val.(string)), str.raw, nil
+	}
+
+	// unicode
+	if char == '\\' {
+		rn, err := parseUnicode(r)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		char = rn
+	}
+
+	if isCharIDValid(char, true) {
+		rs = append(rs, char)
+		// extract key name
+		isIDEnd := false
+		for {
+			char, _, err := r.ReadRune()
+			if err != nil {
+				if err == io.EOF {
+					return nil, nil, ErrInvalidFormat
+				}
+
+				return nil, nil, err
+			}
+
+			// find terminator
+			if isIDEnd {
+				if unicode.IsControl(char) || char == ' ' {
+					isIDEnd = true
+					continue
+				}
+
+				if char != ':' {
+					return nil, nil, ErrInvalidFormat
+				}
+
 				break
 			}
 
-			// identifier end
+			// unicode
+			if char == '\\' {
+				rn, err := parseUnicode(r)
+				if err != nil {
+					return nil, nil, err
+				}
+
+				rs = append(rs, rn)
+				continue
+			}
+
+			// comment
+			if char == '/' {
+				if _, err := parseComment(r); err != nil {
+					return nil, nil, ErrInvalidFormat
+				}
+
+				continue
+			}
+
 			if unicode.IsControl(char) || char == ' ' {
 				isIDEnd = true
 				continue
 			}
 
-			if isIDEnd {
-				if char != ':' {
-					return "", "", ErrInvalidFormat
-				}
-
+			// key terminator
+			if char == ':' {
 				break
 			}
 
-			return "", "", ErrInvalidFormat
+			if isCharIDValid(char, false) {
+				rs = append(rs, char)
+				continue
+			}
+
+			return nil, nil, ErrInvalidFormat
 		}
 
-		rs = append(rs, char)
+		if isReservedWord(rs) {
+			return nil, nil, ErrInvalidFormat
+		}
+
+		return rs, rs, nil
 	}
 
-	if isReservedWord(rs) {
-		return "", "", ErrInvalidFormat
+	return nil, nil, ErrInvalidFormat
+}
+
+func isCharIDValid(char rune, begin bool) bool {
+	if unicode.IsLetter(char) {
+		return true
 	}
 
-	return string(rs), string(rs), nil
+	if unicode.IsNumber(char) {
+		if begin {
+			return false
+		}
+
+		return true
+	}
+
+	if char == '$' {
+		return true
+	}
+
+	if char == '_' {
+		return true
+	}
+
+	return false
 }

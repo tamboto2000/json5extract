@@ -80,7 +80,7 @@ func (json *JSON5) Boolean() (bool, error) {
 	return json.val.(bool), nil
 }
 
-// Null will not return any value because, well, is is nil...
+// Null will not return any value because, well, it is nil...
 func (json *JSON5) Null() error {
 	if json.Kind != Null {
 		return errors.New("value is not null")
@@ -128,23 +128,6 @@ func (json *JSON5) pushRns(chars []rune) {
 func parseAll(r reader) ([]*JSON5, error) {
 	json5s := make([]*JSON5, 0)
 	for {
-		json5, err := parse(r)
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
-
-			continue
-		}
-
-		json5s = append(json5s, json5)
-	}
-
-	return json5s, nil
-}
-
-func parse(r reader) (*JSON5, error) {
-	for {
 		char, _, err := r.ReadRune()
 		if err != nil {
 			if err == io.EOF {
@@ -154,124 +137,141 @@ func parse(r reader) (*JSON5, error) {
 			return nil, err
 		}
 
-		// parse double quoted string
-		if char == '"' {
-			json5, err := parseStr(r, doubleQuotedStr)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
+		json5, err := parse(r, char)
+		if err != nil {
+			if err == io.EOF {
+				break
 			}
 
-			return json5, nil
+			continue
 		}
 
-		// parse single quoted string
-		if char == '\'' {
-			json5, err := parseStr(r, singleQuotedStr)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
-			}
-
-			return json5, nil
-		}
-
-		// parse number
-		if isCharNumBegin(char) {
-			json5, err := parseNum(r, char)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
-			}
-
-			return json5, nil
-		}
-
-		// parse true boolean
-		if char == 't' {
-			json5, err := parseTrueBool(r)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
-			}
-
-			return json5, nil
-		}
-
-		// parse false boolean
-		if char == 'f' {
-			json5, err := parseFalseBool(r)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
-			}
-
-			return json5, nil
-		}
-
-		// parse null
-		if char == 'n' {
-			json5, err := parseNull(r)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
-			}
-
-			return json5, nil
-		}
-
-		// parse array
-		if char == '[' {
-			json5, err := parseArray(r)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
-			}
-			return json5, nil
-		}
-
-		// parse object
-		if char == '{' {
-			json5, err := parseObj(r)
-			if err != nil {
-				if err == io.EOF {
-					break
-				}
-
-				r.UnreadRune()
-				return nil, err
-			}
-			return json5, nil
+		if json5 != nil {
+			json5s = append(json5s, json5)
 		}
 	}
 
-	return nil, io.EOF
+	return json5s, nil
+}
+
+func parse(r reader, char rune) (*JSON5, error) {
+	// parse double quoted string
+	if char == '"' {
+		json5, err := parseStr(r, doubleQuotedStr)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+
+		return json5, nil
+	}
+
+	// parse single quoted string
+	if char == '\'' {
+		json5, err := parseStr(r, singleQuotedStr)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+
+		return json5, nil
+	}
+
+	// parse number
+	if isCharNumBegin(char) {
+		json5, err := parseNum(r, char)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+
+		return json5, nil
+	}
+
+	// parse true boolean
+	if char == 't' {
+		json5, err := parseTrueBool(r)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+
+		return json5, nil
+	}
+
+	// parse false boolean
+	if char == 'f' {
+		json5, err := parseFalseBool(r)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+
+		return json5, nil
+	}
+
+	// parse null
+	if char == 'n' {
+		json5, err := parseNull(r)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+
+		return json5, nil
+	}
+
+	// parse array
+	if char == '[' {
+		json5, err := parseArray(r)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+		return json5, nil
+	}
+
+	// parse object
+	if char == '{' {
+		json5, err := parseObj(r)
+		if err != nil {
+			if err == io.EOF {
+				return nil, err
+			}
+
+			r.UnreadRune()
+			return nil, err
+		}
+		return json5, nil
+	}
+
+	return nil, nil
 }
