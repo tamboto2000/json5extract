@@ -2,6 +2,12 @@ package json5extract
 
 import "io"
 
+// comment types
+const (
+	commInline = iota
+	commMultiLine
+)
+
 func parseComment(r reader) (int, error) {
 	char, _, err := r.ReadRune()
 	if err != nil {
