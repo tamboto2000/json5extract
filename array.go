@@ -46,7 +46,7 @@ func parseArray(r reader) (*JSON5, error) {
 		if json5 != nil {
 			vals = append(vals, json5)
 			arr.pushRns(json5.RawRunes())
-			
+
 		}
 
 		break
@@ -73,6 +73,7 @@ func parseArray(r reader) (*JSON5, error) {
 				return nil, ErrInvalidFormat
 			}
 
+			arr.push(',')
 			onNext = true
 			continue
 		}
@@ -99,12 +100,12 @@ func parseArray(r reader) (*JSON5, error) {
 
 			if json != nil {
 				arr.pushRns(json.raw)
-				arr.push(',')
 				vals = append(vals, json)
+				onNext = false
+				continue
 			}
 
-			onNext = false
-			continue
+			return nil, ErrInvalidFormat
 		}
 
 		return nil, ErrInvalidFormat
