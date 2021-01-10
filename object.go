@@ -7,17 +7,17 @@ import (
 
 func parseObj(r reader) (*JSON5, error) {
 	obj := &JSON5{Kind: Object, val: make(map[string]*JSON5)}
+	state := new(objState)
 	obj.push('{')
-	isEnd, err := parseKeyVal(r, obj, true)
+	err := parseKeyVal(r, obj, state)
 	if err != nil {
 		return nil, err
 	}
 
-	if isEnd {
+	if state.isEnd {
 		return obj, nil
 	}
 
-	onNext := false
 	for {
 		char, _, err := r.ReadRune()
 		if err != nil {
@@ -33,11 +33,13 @@ func parseObj(r reader) (*JSON5, error) {
 		}
 
 		if char == ',' {
-			if onNext {
+			if state.onNext {
 				return nil, ErrInvalidFormat
 			}
 
-			onNext = true
+			obj.push(',')
+
+			state.onNext = true
 			continue
 		}
 
@@ -56,17 +58,17 @@ func parseObj(r reader) (*JSON5, error) {
 		}
 
 		r.UnreadRune()
-		if onNext {
-			isEnd, err := parseKeyVal(r, obj, false)
+		if state.onNext {
+			err := parseKeyVal(r, obj, state)
 			if err != nil {
 				return nil, err
 			}
 
-			if isEnd {
+			if state.isEnd {
 				break
 			}
 
-			onNext = false
+			state.onNext = false
 			continue
 		}
 
@@ -76,7 +78,12 @@ func parseObj(r reader) (*JSON5, error) {
 	return obj, nil
 }
 
-func parseKeyVal(r reader, obj *JSON5, isFirst bool) (bool, error) {
+type objState struct {
+	isEnd  bool
+	onNext bool
+}
+
+func parseKeyVal(r reader, obj *JSON5, state *objState) error {
 	keyVal := obj.val.(map[string]*JSON5)
 	var id []rune
 	var idRaw []rune
@@ -84,10 +91,10 @@ func parseKeyVal(r reader, obj *JSON5, isFirst bool) (bool, error) {
 		char, _, err := r.ReadRune()
 		if err != nil {
 			if err == io.EOF {
-				return false, ErrInvalidFormat
+				return ErrInvalidFormat
 			}
 
-			return false, err
+			return err
 		}
 
 		if unicode.IsControl(char) || char == ' ' {
@@ -95,18 +102,15 @@ func parseKeyVal(r reader, obj *JSON5, isFirst bool) (bool, error) {
 		}
 
 		if char == '}' {
-			if !isFirst {
-				obj.push(',')
-			}
-
 			obj.push(char)
-			return true, nil
+			state.isEnd = true
+			return nil
 		}
 
 		// comment
 		if char == '/' {
 			if _, err := parseComment(r); err != nil {
-				return false, err
+				return err
 			}
 
 			continue
@@ -114,7 +118,7 @@ func parseKeyVal(r reader, obj *JSON5, isFirst bool) (bool, error) {
 
 		i, iraw, err := parseIdentifier(r, char)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		id = i
@@ -128,10 +132,10 @@ func parseKeyVal(r reader, obj *JSON5, isFirst bool) (bool, error) {
 		char, _, err := r.ReadRune()
 		if err != nil {
 			if err == io.EOF {
-				return false, ErrInvalidFormat
+				return ErrInvalidFormat
 			}
 
-			return false, err
+			return err
 		}
 
 		if unicode.IsControl(char) || char == ' ' {
@@ -141,7 +145,7 @@ func parseKeyVal(r reader, obj *JSON5, isFirst bool) (bool, error) {
 		// comment
 		if char == '/' {
 			if _, err := parseComment(r); err != nil {
-				return false, err
+				return err
 			}
 
 			continue
@@ -149,25 +153,20 @@ func parseKeyVal(r reader, obj *JSON5, isFirst bool) (bool, error) {
 
 		val, err := parse(r, char)
 		if err != nil {
-			return false, err
+			return err
 		}
 
 		if val != nil {
 			keyVal[string(id)] = val
 			obj.pushRns(idRaw)
 			obj.pushRns(val.raw)
-			obj.push(',')
 			obj.val = keyVal
+
+			break
 		}
 
-		break
+		return ErrInvalidFormat
 	}
 
-	return false, nil
+	return nil
 }
-
-// comment types
-const (
-	commInline = iota
-	commMultiLine
-)
