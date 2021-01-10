@@ -46,10 +46,10 @@ func parseArray(r reader) (*JSON5, error) {
 		if json5 != nil {
 			vals = append(vals, json5)
 			arr.pushRns(json5.RawRunes())
-
+			break
 		}
 
-		break
+		return nil, ErrInvalidFormat
 	}
 
 	onNext := false
