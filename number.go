@@ -70,7 +70,8 @@ func parseNum(r reader, firstC rune) (*JSON5, error) {
 			return nil, err
 		}
 
-		if char == ',' || char == '}' || char == ']' {
+		// end of number
+		if isCharEndOfNum(char) {
 			r.UnreadRune()
 			return num, nil
 		}
@@ -132,12 +133,9 @@ func parseNum(r reader, firstC rune) (*JSON5, error) {
 			return num, nil
 		}
 
-		if char == ']' || char == '}' || char == ',' {
+		// end of number
+		if isCharEndOfNum(char) {
 			r.UnreadRune()
-			return num, nil
-		}
-
-		if unicode.IsControl(char) || char == ' ' {
 			return num, nil
 		}
 
@@ -228,12 +226,9 @@ func parseOnlyNum(r reader, num *JSON5, state *numStates) error {
 				continue
 			}
 
-			if char == ']' || char == '}' || char == ',' {
+			// end of number
+			if isCharEndOfNum(char) {
 				r.UnreadRune()
-				break
-			}
-
-			if unicode.IsControl(char) || char == ' ' {
 				break
 			}
 
@@ -400,6 +395,19 @@ func parseNaN(r reader, num *JSON5, state *numStates) error {
 
 func isMinOrPlusSign(char rune) bool {
 	if char == '-' || char == '+' {
+		return true
+	}
+
+	return false
+}
+
+func isCharEndOfNum(char rune) bool {
+	if unicode.IsControl(char) {
+		return true
+	}
+
+	if char == ']' || char == '}' ||
+		char == ',' || char == ' ' {
 		return true
 	}
 
