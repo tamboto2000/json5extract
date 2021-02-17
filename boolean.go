@@ -8,7 +8,7 @@ var (
 )
 
 func parseTrueBool(r reader) (*JSON5, error) {
-	bl := &JSON5{Kind: Boolean}
+	bl := &JSON5{kind: Boolean}
 	bl.push('t')
 	for _, c := range boolTrue {
 		char, _, err := r.ReadRune()
@@ -29,7 +29,7 @@ func parseTrueBool(r reader) (*JSON5, error) {
 }
 
 func parseFalseBool(r reader) (*JSON5, error) {
-	bl := &JSON5{Kind: Boolean}
+	bl := &JSON5{kind: Boolean}
 	bl.push('f')
 	for _, c := range boolFalse {
 		char, _, err := r.ReadRune()

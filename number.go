@@ -240,19 +240,19 @@ func parseOnlyNum(r reader, num *JSON5, state *numStates) error {
 
 	if state.isFloat {
 		i, _ := strconv.ParseFloat(string(num.raw), 64)
-		num.Kind = Float
+		num.kind = Float
 		num.val = i
 	}
 
 	if state.isInt {
 		if state.withExp {
 			i, _ := strconv.ParseFloat(string(num.raw), 64)
-			num.Kind = Float
+			num.kind = Float
 			num.val = i
 		}
 
 		i, _ := strconv.ParseInt(string(num.raw), 10, 64)
-		num.Kind = Integer
+		num.kind = Integer
 		num.val = i
 	}
 
@@ -288,7 +288,7 @@ func parseOnlyHex(r reader, num *JSON5) error {
 
 	i, _ := strconv.ParseInt(string(num.raw), 0, 64)
 	num.val = i
-	num.Kind = Integer
+	num.kind = Integer
 
 	return nil
 }
@@ -363,7 +363,7 @@ func parseInf(r reader, num *JSON5, state *numStates) error {
 		num.val = math.Inf(1)
 	}
 
-	num.Kind = Infinity
+	num.kind = Infinity
 
 	return nil
 }
@@ -388,7 +388,7 @@ func parseNaN(r reader, num *JSON5, state *numStates) error {
 		num.val = math.NaN()
 	}
 
-	num.Kind = NaN
+	num.kind = NaN
 
 	return nil
 }

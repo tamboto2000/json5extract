@@ -6,7 +6,7 @@ import (
 )
 
 func parseObj(r reader) (*JSON5, error) {
-	obj := &JSON5{Kind: Object, val: make(map[string]*JSON5)}
+	obj := &JSON5{kind: Object, val: make(map[string]*JSON5)}
 	state := new(objState)
 	obj.push('{')
 	err := parseKeyVal(r, obj, state)

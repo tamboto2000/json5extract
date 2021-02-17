@@ -6,7 +6,7 @@ import (
 )
 
 func parseArray(r reader) (*JSON5, error) {
-	arr := &JSON5{Kind: Array}
+	arr := &JSON5{kind: Array}
 	arr.push('[')
 	vals := make([]*JSON5, 0)
 
@@ -45,7 +45,7 @@ func parseArray(r reader) (*JSON5, error) {
 
 		if json5 != nil {
 			vals = append(vals, json5)
-			arr.pushRns(json5.RawRunes())
+			arr.pushRns(json5.Runes())
 			break
 		}
 

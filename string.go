@@ -18,7 +18,7 @@ const (
 )
 
 func parseStr(r reader, ty int) (*JSON5, error) {
-	str := &JSON5{Kind: String}
+	str := &JSON5{kind: String}
 	if ty == doubleQuotedStr {
 		str.push('"')
 	} else {

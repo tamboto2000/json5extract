@@ -1,7 +1,6 @@
 package json5extract
 
 import (
-	"errors"
 	"io"
 )
 
@@ -21,99 +20,95 @@ const (
 // JSON5 represent parsed value of JSON5 types. Check JSON5.Kind to know
 // which data type a value is
 type JSON5 struct {
-	Kind int
+	kind int
 	val  interface{}
 	raw  []rune
 }
 
-// String return string value
-func (json *JSON5) String() (string, error) {
-	if json.Kind != String {
-		return "", errors.New("value is not string")
-	}
-
-	return json.val.(string), nil
+// Kind return json kind
+func (json *JSON5) Kind() int {
+	return json.kind
 }
 
-// Integer return int64 value
-func (json *JSON5) Integer() (int64, error) {
-	if json.Kind != Integer {
-		return 0, errors.New("value is not int")
+// String return string value. Will panic if kind is not String
+func (json *JSON5) String() string {
+	if json.kind != String {
+		panic("value is not string")
 	}
 
-	return json.val.(int64), nil
+	return json.val.(string)
 }
 
-// Float return float64 value
-func (json *JSON5) Float() (float64, error) {
-	if json.Kind != Float {
-		return 0, errors.New("value is not float")
+// Integer return int64 value. Will panic if kind is not Integer
+func (json *JSON5) Integer() int64 {
+	if json.kind != Integer {
+		panic("value is not int")
 	}
 
-	return json.val.(float64), nil
+	return json.val.(int64)
 }
 
-// Infinity return Inf value
-func (json *JSON5) Infinity() (float64, error) {
-	if json.Kind != Infinity {
-		return 0, errors.New("value is not Inf")
+// Float return float64 value. Will panic if kind is not Float
+func (json *JSON5) Float() float64 {
+	if json.kind != Float {
+		panic("value is not float")
 	}
 
-	return json.val.(float64), nil
+	return json.val.(float64)
 }
 
-// NaN return NaN value
-func (json *JSON5) NaN() (float64, error) {
-	if json.Kind != NaN {
-		return 0, errors.New("value is not NaN")
+// Infinity return Inf value. Will panic if kind is not Infinity
+func (json *JSON5) Infinity() float64 {
+	if json.kind != Infinity {
+		panic("value is not Inf")
 	}
 
-	return json.val.(float64), nil
+	return json.val.(float64)
 }
 
-// Boolean return bool value
-func (json *JSON5) Boolean() (bool, error) {
-	if json.Kind != Boolean {
-		return false, errors.New("value is not bool")
+// NaN return NaN value. Will panic if kind is not NaN
+func (json *JSON5) NaN() float64 {
+	if json.kind != NaN {
+		panic("value is not NaN")
 	}
 
-	return json.val.(bool), nil
+	return json.val.(float64)
 }
 
-// Null will not return any value because, well, it is nil...
-func (json *JSON5) Null() error {
-	if json.Kind != Null {
-		return errors.New("value is not null")
+// Boolean return bool value. Will panic if kind is not Boolean
+func (json *JSON5) Boolean() bool {
+	if json.kind != Boolean {
+		panic("value is not bool")
 	}
 
-	return nil
+	return json.val.(bool)
 }
 
-// Array return slice of JSON5 values
-func (json *JSON5) Array() ([]*JSON5, error) {
-	if json.Kind != Array {
-		return nil, errors.New("value is not array")
+// Array return slice of JSON5 values. Will panic if kind is not Array
+func (json *JSON5) Array() []*JSON5 {
+	if json.kind != Array {
+		panic("value is not array")
 	}
 
-	return json.val.([]*JSON5), nil
+	return json.val.([]*JSON5)
 }
 
-// Object return map of JSON5 values
-func (json *JSON5) Object() (map[string]*JSON5, error) {
-	if json.Kind != Object {
-		return nil, errors.New("value is not object")
+// Object return map of JSON5 values. Will panic if kind is not Object
+func (json *JSON5) Object() map[string]*JSON5 {
+	if json.kind != Object {
+		panic("value is not object")
 	}
 
-	return json.val.(map[string]*JSON5), nil
+	return json.val.(map[string]*JSON5)
 }
 
-// RawBytes return parsed raw bytes of JSON5
-func (json *JSON5) RawBytes() []byte {
+// Bytes return parsed raw bytes of JSON5
+func (json *JSON5) Bytes() []byte {
 	return runesToUTF8(json.raw)
 }
 
-// RawRunes return parsed raw bytes of JSON5
-func (json *JSON5) RawRunes() []rune {
+// Runes return parsed raw bytes of JSON5
+func (json *JSON5) Runes() []rune {
 	return json.raw
 }
 
