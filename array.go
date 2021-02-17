@@ -26,6 +26,10 @@ func parseArray(r reader) (*JSON5, error) {
 
 		if char == ']' {
 			arr.push(char)
+			if arr.val == nil {
+				arr.val = vals
+			}
+
 			return arr, nil
 		}
 
